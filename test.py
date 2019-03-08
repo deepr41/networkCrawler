@@ -9,6 +9,7 @@ from os import path,mkdir,fsync
 from bs4 import BeautifulSoup
 import sys
 import re
+from multiprocessing.dummy import Pool as ThreadPool
 
 userAgentList = [
    #Chrome
