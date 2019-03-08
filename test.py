@@ -10,6 +10,7 @@ from bs4 import BeautifulSoup
 import sys
 import re
 import threading
+import queue
 
 userAgentList = [
    #Chrome
@@ -61,7 +62,7 @@ def openFiles():
 
     if not (path.exists('./WebPages')):
         mkdir('./WebPages')
-    return finalFile,aliasFile,fetchFile
+    return (finalFile,aliasFile,fetchFile)
 
 def readData(path):
     try:
@@ -69,91 +70,212 @@ def readData(path):
     except:
         print("Error in reading input file")
 
-def main():
-    finalFile,aliasFile,fetchFile = openFiles()
-    # return
-    start,end = 0,30
-    total=end-start
-    csvData = readData(path)
-    topTen = csvData[start:end]
+num_threads=50
+q = queue.Queue(num_threads*3)
+fullCondition = threading.Condition()
+emptyCondition = threading.Condition()
+queueCondition = threading.Condition()
+finished=False
 
-    
-    def scrape():
-        def handleAliasError(err):
-            aliasFile.write(slno+','+url+'\n')
-            traceback.print_exc()
+dataLock=threading.Lock()
+fetchLock=threading.Lock()
+aliasLock=threading.Lock()
+class ProducerThread(threading.Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs=None, verbose=None, path='./top-1m-websites.csv', begin=None, num_samples=None):
+        super(ProducerThread,self).__init__()
+        self.target = target
+        self.name = name
+        self.path=path
+        if begin is None or num_samples is None:
+            raise ValueError("Invalid Limits")
+        self.begin=begin
+        self.num_samples=num_samples
 
-        def handleFetchError(err):
-            fetchFile.write(slno+','+url+'\n')
-            traceback.print_exc()
-                                    
-        start=int(threading.current_thread().name)*int(total/num_threads)
-        end=start+int(total/num_threads)
-        for i in range(0,end - start):
-            print("Thread",threading.current_thread().name)
-            timeStart = time.time()
-            url = str(topTen['websiteName'][start + i])
-            urltemp1 = 'www.'+ url
-            slno = str(topTen['slno'][start + i])
-            try:
-                hostData = socket.gethostbyname_ex(urltemp1)
-                hostName = hostData[0]
-                aliases = hostData[1]
-                ipAddress= hostData[2]
-                # Todo handle unicode in hostname,aliases
-                aliasString = ''
-                for j in aliases:
-                    aliasString =aliasString +' ' +j
-                aliasString = aliasString.strip()
-                ipString = ''
-                for j in ipAddress:
-                    ipString =ipString +' ' +j
-                ipString = ipString.strip()
-                # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
-            except Exception as e:
-                handleAliasError(e)
-                print('Failed :' + slno, end = "  ")
-                continue
-            try:
-                urltemp2 = 'https://' + urltemp1
-                user_agent = random.choice(userAgentList)
-                request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
-                response = urllib.request.urlopen(request, timeout= 20)
-                # response = requests.get(urltemp2)
-                soup = BeautifulSoup(response.read(), "html.parser")
-                websiteData = soup.prettify()
-                titlesString,descString,langString,keyword = getDetails(soup)
-                # getDetails(soup)
+            
 
 
-                finalString = ''+slno+','+url+','+aliasString+','+ipString+','+titlesString+','+descString+ \
-                                ','+langString+','+keyword+'\n'
-                # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
-                finalFile.write(finalString)
-                finalFile.flush()
-                fsync(finalFile.fileno())
-                print('Completed :' + slno, end = "  ")
 
-                with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
-                    webPageFile.write(websiteData)
-                # with open(slno+'_'+hostname+'.html')
-                # break
-            except Exception as e:
-                handleFetchError(e)
-                print('Failed :' + slno, end = "  ")
-            timeEnd = time.time()
-            print(timeEnd - timeStart)
-        barrier.wait()
-        print("barrier passed at ",time.time()-timeProgramStart)
+    def run(self):
+        fileData = readData(path)
+        i=self.begin
+        global finished
+        while i<self.begin+self.num_samples:
+            if not q.full():
+                url = str(fileData['websiteName'][i])
+                slno = str(fileData['slno'][i])
+                item=(slno,url)
+                queueCondition.acquire()
+                q.put(item)
+                queueCondition.release()
+                #emptyCondition.notify_all()
+                #notifyall
+                # print('Putting ' + str(item)  
+                #               + ' : ' + str(q.qsize()) + ' items in queue')
+                #time.sleep(random.random())
+                i=i+1
+            else:
+                pass
+                #fullCondition.wait()
+        finished=True
+        return
+
+class ConsumerThread(threading.Thread):
+    def __init__(self, group=None, target=None, name=None,
+                 args=(), kwargs=None, verbose=None, files=None):
+        super(ConsumerThread,self).__init__()
+        if target is None:
+            print("No target")
+            exit()
+        self.target = target
+        self.name = name
+        if files is None:
+            print("No files")
+            exit()
+        self.files=files
+        return
+
+    def run(self):
+        global finished
+        while ((not finished) or (not q.empty())):
+            if not q.empty():
+                item = "queue is empty"
+                queueCondition.acquire()
+                if not q.empty():
+                    item = q.get()
+                else:
+                    queueCondition.release()
+                    time.sleep(1)
+                    continue
+                queueCondition.release()
+                self.target(item,self.files)
+
+                # print('Getting ' + str(item) 
+                #               + ' : ' + str(q.qsize()) + ' items in queue')
+            else:
+                pass
+                #fullCondition.notify()
+                #emptyCondition.wait()
+
+        return
+
+def handleAliasError(err,aliasFile,slno,url):
+    aliasLock.acquire()
+    aliasFile.write(slno+','+url+'\n')
+    aliasFile.flush()
+    fsync(aliasFile.fileno()) 
+    aliasLock.release() 
+    # traceback.print_exc()
+
+def handleFetchError(err,fetchFile,slno,url):
+    fetchFile.write(slno+','+url+'\n')
+    fetchFile.flush()
+    fsync(fetchFile.fileno())   
+    # traceback.print_exc()
+
+def scrape(element,files):
+    finalFile = files[0]
+    aliasFile = files[1]
+    fetchFile = files[2]
+    slno=element[0]
+    url=element[1]              
+    #start=int(threading.current_thread().name)*int(total/num_threads)
+    #end=start+int(total/num_threads)
+    #for i in range(0,end - start):
+    #print("Thread",threading.current_thread().name)
+    #timeStart = time.time()
+    #url = str(topTen['websiteName'][start + i])
+    urltemp1 = 'www.'+ url
+    #slno = str(topTen['slno'][start + i])
+    try:
+        hostData = socket.gethostbyname_ex(urltemp1)
+        hostName = hostData[0]
+        aliases = hostData[1]
+        ipAddress= hostData[2]
         
-    timeProgramStart = time.time()
-    num_threads=10
-    barrier=threading.Barrier(num_threads)
-    for k in range(0,num_threads):
-        threading.Thread(name=str(k),target=scrape).start()
+        aliasString = ''
+        for j in aliases:
+            aliasString =aliasString +' ' +j
+        aliasString = aliasString.strip()
+        ipString = ''
+        for j in ipAddress:
+            ipString =ipString +' ' +j
+        ipString = ipString.strip()
+        # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
+    except Exception as e:
+        handleAliasError(e,aliasFile,slno,url)
+        print('Failed :' + slno, end = "  ")
+        #timeEnd = time.time()
+        #print(timeEnd - timeStart)
+        return
+        #continue
+    try:
+        urltemp2 = 'https://' + urltemp1
+        user_agent = random.choice(userAgentList)
+        request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
+        response = urllib.request.urlopen(request, timeout= 20)
+        if(response.status != 200):
+            raise Exception("Invalid Response")
+        # response = requests.get(urltemp2)
+        soup = BeautifulSoup(response.read(), "html.parser")
+        websiteData = soup.prettify()
+        titlesString,descString,langString,keyword = getDetails(soup)
+        # getDetails(soup)
+
+
+        finalString = ''+slno+','+hostName+','+aliasString+','+ipString+','+titlesString+','+descString+ \
+                        ','+langString+','+keyword+'\n'
+        # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
+        dataLock.acquire()
+        finalFile.write(finalString)
+        finalFile.flush()
+        fsync(finalFile.fileno())
+        dataLock.release()
+        print('Completed :' + slno, end = "  ")
+
+        with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
+            webPageFile.write(websiteData)
+        # with open(slno+'_'+hostname+'.html')
+        # break
+    except Exception as e:
+        handleFetchError(e,fetchFile,slno,url)
+        print('Failed :' + slno, end = "  ")
+    #timeEnd = time.time()
+    #print(timeEnd - timeStart)
+    #barrier.wait()
+    #print("barrier passed at ",time.time()-timeProgramStart)
+
+def main():
+    files = openFiles()
+
+    # # return
+    # start,end = 0,20
+    # total=end-start
+    # csvData = readData(path)
+    # topTen = csvData[start:end]
     
-    timeProgramEnd = time.time()
-    print("Total time elapsed = ",timeProgramEnd - timeProgramStart)
+    begin=int(input("Enter starting : "))
+    num_samples = int(input("Enter num samples : "))
+    #timeProgramStart = time.time()
+    
+    #barrier=threading.Barrier(num_threads)
+    startTime = time.time()
+    barrier = threading.Barrier(num_threads)
+    producer = ProducerThread(begin=begin,num_samples=num_samples)
+    producer.start()
+    consumerList = []
+    for k in range(0,num_threads):
+        consumer = ConsumerThread(name=str(k),target=scrape,files=files)
+        consumerList.append(consumer)
+        consumer.start()
+
+    producer.join()
+    for consumer in consumerList:
+        consumer.join()
+    endTime = time.time()
+    print("Total time ",endTime-startTime)
+    #timeProgramEnd = time.time()
+    #print("Total time elapsed = ",timeProgramEnd - timeProgramStart)
     
 
 def getDetails(soup):
@@ -161,9 +283,10 @@ def getDetails(soup):
     descps = []
     langs = []
     try:
-        title1=str(soup.title)
-        title1=title1.replace("<title>","")
-        titles.append(title1.replace("</title>",""))
+        title1=soup.find('title').string
+        #title1=title1.replace("<title>","")
+        #titles.append(title1.replace("</title>",""))
+        titles.append(title1)
     except:
         pass
     try:
@@ -226,9 +349,11 @@ def getDetails(soup):
     descps = set(descps) - {None}
     langs = set(langs) - {None}
 
-    titles = list(i.replace(',',' ') for i in titles)
-    descps = list(i.replace(',',' ') for i in descps)
-    langs = list(i.replace(',',' ') for i in langs)
+    titles = list(i.replace(',',' ').replace("\n"," ") for i in titles)
+    descps = list(i.replace(',',' ').replace("\n"," ") for i in descps)
+    langs = list(i.replace(',',' ').replace("\n"," ") for i in langs)
+
+    keyword = keyword.replace(',',' ').replace("\n"," ")
     #
     titlesString = ''
     for j in titles:
