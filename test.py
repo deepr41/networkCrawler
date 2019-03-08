@@ -9,6 +9,7 @@ from os import path,mkdir,fsync
 from bs4 import BeautifulSoup
 import sys
 import re
+import threading
 
 userAgentList = [
    #Chrome
@@ -71,74 +72,89 @@ def readData(path):
 def main():
     finalFile,aliasFile,fetchFile = openFiles()
     # return
-    start,end = 0,10
+    start,end = 0,30
+    total=end-start
     csvData = readData(path)
     topTen = csvData[start:end]
 
-    def handleAliasError(err):
-        aliasFile.write(slno+','+url+'\n')
-        traceback.print_exc()
+    
+    def scrape():
+        def handleAliasError(err):
+            aliasFile.write(slno+','+url+'\n')
+            traceback.print_exc()
 
-    def handleFetchError(err):
-        fetchFile.write(slno+','+url+'\n')
-        traceback.print_exc()
+        def handleFetchError(err):
+            fetchFile.write(slno+','+url+'\n')
+            traceback.print_exc()
+                                    
+        start=int(threading.current_thread().name)*int(total/num_threads)
+        end=start+int(total/num_threads)
+        for i in range(0,end - start):
+            print("Thread",threading.current_thread().name)
+            timeStart = time.time()
+            url = str(topTen['websiteName'][start + i])
+            urltemp1 = 'www.'+ url
+            slno = str(topTen['slno'][start + i])
+            try:
+                hostData = socket.gethostbyname_ex(urltemp1)
+                hostName = hostData[0]
+                aliases = hostData[1]
+                ipAddress= hostData[2]
+                # Todo handle unicode in hostname,aliases
+                aliasString = ''
+                for j in aliases:
+                    aliasString =aliasString +' ' +j
+                aliasString = aliasString.strip()
+                ipString = ''
+                for j in ipAddress:
+                    ipString =ipString +' ' +j
+                ipString = ipString.strip()
+                # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
+            except Exception as e:
+                handleAliasError(e)
+                print('Failed :' + slno, end = "  ")
+                continue
+            try:
+                urltemp2 = 'https://' + urltemp1
+                user_agent = random.choice(userAgentList)
+                request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
+                response = urllib.request.urlopen(request, timeout= 20)
+                # response = requests.get(urltemp2)
+                soup = BeautifulSoup(response.read(), "html.parser")
+                websiteData = soup.prettify()
+                titlesString,descString,langString,keyword = getDetails(soup)
+                # getDetails(soup)
 
+
+                finalString = ''+slno+','+url+','+aliasString+','+ipString+','+titlesString+','+descString+ \
+                                ','+langString+','+keyword+'\n'
+                # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
+                finalFile.write(finalString)
+                finalFile.flush()
+                fsync(finalFile.fileno())
+                print('Completed :' + slno, end = "  ")
+
+                with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
+                    webPageFile.write(websiteData)
+                # with open(slno+'_'+hostname+'.html')
+                # break
+            except Exception as e:
+                handleFetchError(e)
+                print('Failed :' + slno, end = "  ")
+            timeEnd = time.time()
+            print(timeEnd - timeStart)
+        barrier.wait()
+        print("barrier passed at ",time.time()-timeProgramStart)
+        
     timeProgramStart = time.time()
-    for i in range(0,end - start):
-        timeStart = time.time()
-        url = str(topTen['websiteName'][start + i])
-        urltemp1 = 'www.'+ url
-        slno = str(topTen['slno'][start + i])
-        try:
-            hostData = socket.gethostbyname_ex(urltemp1)
-            hostName = hostData[0]
-            aliases = hostData[1]
-            ipAddress= hostData[2]
-            # Todo handle unicode in hostname,aliases
-            aliasString = ''
-            for j in aliases:
-                aliasString =aliasString +' ' +j
-            aliasString = aliasString.strip()
-            ipString = ''
-            for j in ipAddress:
-                ipString =ipString +' ' +j
-            ipString = ipString.strip()
-            # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
-        except Exception as e:
-            handleAliasError(e)
-            print('Failed :' + slno, end = "  ")
-            continue
-        try:
-            urltemp2 = 'https://' + urltemp1
-            user_agent = random.choice(userAgentList)
-            request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
-            response = urllib.request.urlopen(urltemp2)
-            # response = requests.get(urltemp2)
-            soup = BeautifulSoup(response.read(), "html.parser")
-            websiteData = soup.prettify()
-            titlesString,descString,langString,keyword = getDetails(soup)
-            # getDetails(soup)
-
-
-            finalString = ''+slno+','+url+','+aliasString+','+ipString+','+titlesString+','+descString+ \
-                            ','+langString+','+keyword+'\n'
-            # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
-            finalFile.write(finalString)
-            finalFile.flush()
-            fsync(finalFile.fileno())
-            print('Completed :' + slno, end = "  ")
-
-            with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
-                webPageFile.write(websiteData)
-            # with open(slno+'_'+hostname+'.html')
-            # break
-        except Exception as e:
-            handleFetchError(e)
-            print('Failed :' + slno, end = "  ")
-        timeEnd = time.time()
-        print(timeEnd - timeStart)
+    num_threads=10
+    barrier=threading.Barrier(num_threads)
+    for k in range(0,num_threads):
+        threading.Thread(name=str(k),target=scrape).start()
+    
     timeProgramEnd = time.time()
     print("Total time elapsed = ",timeProgramEnd - timeProgramStart)
+    
 
 def getDetails(soup):
     titles = []
