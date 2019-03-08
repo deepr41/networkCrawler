@@ -71,16 +71,20 @@ def readData(path):
 def main():
     finalFile,aliasFile,fetchFile = openFiles()
     # return
-    start,end = 0,10
+    start,end = 0,30
     csvData = readData(path)
     topTen = csvData[start:end]
 
     def handleAliasError(err):
         aliasFile.write(slno+','+url+'\n')
+        aliasFile.flush()
+        fsync(aliasFile.fileno())  
         traceback.print_exc()
 
     def handleFetchError(err):
         fetchFile.write(slno+','+url+'\n')
+        fetchFile.flush()
+        fsync(fetchFile.fileno())   
         traceback.print_exc()
 
     timeProgramStart = time.time()
@@ -107,12 +111,17 @@ def main():
         except Exception as e:
             handleAliasError(e)
             print('Failed :' + slno, end = "  ")
+            timeEnd = time.time()
+            print(timeEnd - timeStart)
             continue
         try:
             urltemp2 = 'https://' + urltemp1
             user_agent = random.choice(userAgentList)
             request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
-            response = urllib.request.urlopen(urltemp2)
+            response = urllib.request.urlopen(request, timeout=20)
+            if(response.status != 200):
+                raise Exception("Invalid Response")
+            print(response.status, end = " ")
             # response = requests.get(urltemp2)
             soup = BeautifulSoup(response.read(), "html.parser")
             websiteData = soup.prettify()
@@ -120,21 +129,23 @@ def main():
             # getDetails(soup)
 
 
-            finalString = ''+slno+','+url+','+aliasString+','+ipString+','+titlesString+','+descString+ \
+            finalString = ''+slno+','+hostName+','+aliasString+','+ipString+','+titlesString+','+descString+ \
                             ','+langString+','+keyword+'\n'
             # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
             finalFile.write(finalString)
             finalFile.flush()
             fsync(finalFile.fileno())
-            print('Completed :' + slno, end = "  ")
+            print('Completed : ' + slno, end = "  ")
 
             with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
                 webPageFile.write(websiteData)
             # with open(slno+'_'+hostname+'.html')
             # break
+        except TimeoutError:
+            print('TimeOut Error : ' + slno, end = "  ")
         except Exception as e:
             handleFetchError(e)
-            print('Failed :' + slno, end = "  ")
+            print('Failed : ' + slno, end = "  ")
         timeEnd = time.time()
         print(timeEnd - timeStart)
     timeProgramEnd = time.time()
@@ -210,9 +221,9 @@ def getDetails(soup):
     descps = set(descps) - {None}
     langs = set(langs) - {None}
 
-    titles = list(i.replace(',',' ') for i in titles)
-    descps = list(i.replace(',',' ') for i in descps)
-    langs = list(i.replace(',',' ') for i in langs)
+    titles = list(i.replace(',',' ').replace("\n"," ") for i in titles)
+    descps = list(i.replace(',',' ').replace("\n"," ") for i in descps)
+    langs = list(i.replace(',',' ').replace("\n"," ") for i in langs)
     #
     titlesString = ''
     for j in titles:
