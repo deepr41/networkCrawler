@@ -94,8 +94,6 @@ class ProducerThread(threading.Thread):
 
             
 
-
-
     def run(self):
         fileData = readData(path)
         i=self.begin
