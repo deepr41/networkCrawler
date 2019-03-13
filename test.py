@@ -42,11 +42,11 @@ userAgentList = [
 
 def openFiles():
     from os import path
-    if(path.exists('./data.csv')):
-        finalFile = open('data.csv','a')
+    if(path.exists('./networkData.csv')):
+        finalFile = open('networkData.csv','a')
     else:
-        finalFile = open('data.csv','a')
-        finalFile.write("slno,hostname,alias,ipaddress,titles,description,language,keyword\n")
+        finalFile = open('networkData.csv','a')
+        finalFile.write("slno,hostname,alias,ipaddress\n")# ,titles,description,language,keyword\n")
 
     if(path.exists('./aliasError.csv')):
         aliasFile = open('aliasError.csv','a')
@@ -210,31 +210,31 @@ def scrape(element,files):
         return
         #continue
     try:
-        urltemp2 = 'https://' + urltemp1
-        user_agent = random.choice(userAgentList)
-        request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
-        response = urllib.request.urlopen(request, timeout= 20)
-        if(response.status != 200):
-            raise Exception("Invalid Response")
+        # urltemp2 = 'https://' + urltemp1
+        # user_agent = random.choice(userAgentList)
+        # request = urllib.request.Request(urltemp2, headers = {'User-Agent':user_agent})
+        # response = urllib.request.urlopen(request, timeout= 20)
+        # if(response.status != 200):
+        #     raise Exception("Invalid Response")
         # response = requests.get(urltemp2)
-        soup = BeautifulSoup(response.read(), "html.parser")
-        websiteData = soup.prettify()
-        titlesString,descString,langString,keyword = getDetails(soup)
+        # soup = BeautifulSoup(response.read(), "html.parser")
+        # websiteData = soup.prettify()
+        # titlesString,descString,langString,keyword = getDetails(soup)
         # getDetails(soup)
 
 
-        finalString = ''+slno+','+hostName+','+aliasString+','+ipString+','+titlesString+','+descString+ \
-                        ','+langString+','+keyword+'\n'
-        # finalString = ''+slno+','+url+','+aliasString+','+ipString+'\n'
+        # finalString = ''+slno+','+hostName+','+aliasString+','+ipString+','+titlesString+','+descString+ \
+                        # ','+langString+','+keyword+'\n'
+        finalString = ''+slno+','+hostName+','+aliasString+','+ipString+'\n'
         dataLock.acquire()
         finalFile.write(finalString)
         finalFile.flush()
         fsync(finalFile.fileno())
         dataLock.release()
-        print('Completed :' + slno, end = "  ")
+        print('Completed :' + slno, end = "\n")
 
-        with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
-            webPageFile.write(websiteData)
+        # with open('./WebPages/'+slno+'_'+url+'.html','w') as webPageFile:
+        #     webPageFile.write(websiteData)
         # with open(slno+'_'+hostname+'.html')
         # break
     except Exception as e:
