@@ -63,7 +63,7 @@ def openFiles():
         mkdir('./WebPages')
     return finalFile,aliasFile,fetchFile
 
-def readData(path):
+def readData(path): 
     try:
         return pd.read_csv('./top-1m-websites.csv',)
     except:

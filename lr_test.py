@@ -3,6 +3,7 @@ import gensim.downloader as api
 from gensim.models import TfidfModel
 from gensim.corpora import Dictionary
 import csv
+from os import path,mkdir,fsync
 
 # with open("data.csv", "r") as f:
 #     reader = csv.reader(f, delimiter=",")
@@ -20,8 +21,15 @@ corpus = [dct.doc2bow(line) for line in dataset]
 model = TfidfModel(corpus)  
 vector = {}
 
-for i in range(1700):
+if(path.exists('./lr.csv')):
+        aliasFile = open('lr.csv','a')
+else:
+    aliasFile = open('lr.csv','a')
+    #aliasFile.write("slno,hostname\n")
+
+for i in range(100):
     vector[i]=model[corpus[i]]
+    finalFile.write(vector[i])
     
 print(vector)
 
