@@ -11,6 +11,7 @@ import sys
 import re
 import threading
 import queue
+from scrape import WebSpider
 
 userAgentList = [
    #Chrome
@@ -219,6 +220,8 @@ def scrape(element,files):
         # websiteData = soup.prettify()
         # titlesString,descString,langString,keyword = getDetails(soup)
         # getDetails(soup)
+        process.crawl(WebSpider,url = [urltemp1])
+        process.start()
 
 
         # finalString = ''+slno+','+hostName+','+aliasString+','+ipString+','+titlesString+','+descString+ \
