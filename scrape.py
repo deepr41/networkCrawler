@@ -6,6 +6,7 @@ import logging
 import time
 from os import path,mkdir,fsync
 
+from scrapy.http import Request
 from scrapy.spidermiddlewares.httperror import HttpError
 from twisted.internet.error import DNSLookupError
 from twisted.internet.error import TimeoutError, TCPTimedOutError
@@ -41,39 +42,41 @@ userAgentList = [
 class WebSpider(scrapy.Spider):
     #start_urls = ['https://www.google.com/']
 
-    # def __init__(self,data = 'data.csv', errorFile = 'fetchError.csv',finale = 'finale.csv'):
-    #     # self.start_urls=url
-    #     self.errorFile = open(errorFile,'w')
-    #     self.finale = open(finale,'w')
-    #     data = pd.read_csv(data)
-    #     self.start_urls = []
-    #     self.web_info = []
-    #     k = pd.read_csv('top-1m-websites.csv')
-    #     self.webdict={}
-    #     for i,row in k.head(15).iterrows():
-    #         self.webdict[row['slno']] = row['websiteName']
-    #     for i,row in data.head(15).iterrows():
-    #         self.start_urls.append('https://www.'+self.webdict[row['slno']])
-    #         self.web_info.append(row.tolist())
-    #     print('start_urls',self.start_urls)
-    #     print('web_info',self.web_info)
+    def __init__(self,data = 'data.csv', errorFile = 'fetchError.csv',finale = 'finale.csv'):
+        # self.start_urls=url
+        self.errorFile = open(errorFile,'w')
+        self.finale = open(finale,'w')
+        # data = pd.read_csv(data)
+        # data = data.replace(np.nan, '', regex=True)
+        self.start_urls = []
+        self.web_info = []
+        k = pd.read_csv('top-1m-websites.csv')
+        self.webdict={}
+        for i,row in k.head(15).iterrows():
+            self.webdict[row['slno']] = row['websiteName']
+        for i,row in data.head(15).iterrows():
+            self.start_urls.append('https://www.'+self.webdict[row['slno']])
+            self.web_info.append(row.tolist())
+        print('start_urls',self.start_urls)
+        print('web_info',self.web_info)
         
-    def __init__(self,name, url, slno, aliasString, errorFile = 'fetchError.csv',finale = 'finale.csv'):
-        logging.getLogger('scrapy').setLevel(logging.ERROR)
+    # def __init__(self,name, url, slno, aliasString, errorFile = 'fetchError.csv',finale = 'finale.csv'):
+    #     logging.getLogger('scrapy').setLevel(logging.ERROR)
 
-        self.name = name
-        self.slno = slno
-        self.url = url[12:]
-        self.start_urls=[url]
-        #self.errorFile = open(errorFile,'a')
-        #self.finale = open(finale,'a')
-        self.aliasString = aliasString
-        #self.logger = logging.getLogger("ErrorLogger")
+    #     self.name = name
+    #     self.slno = slno
+    #     self.url = url[12:]
+    #     self.start_urls=[url]
+    #     #self.errorFile = open(errorFile,'a')
+    #     #self.finale = open(finale,'a')
+    #     self.aliasString = aliasString
+    #     #self.logger = logging.getLogger("ErrorLogger")
         
     def start_requests(self):
         for u in self.start_urls:
-            yield scrapy.Request(u, callback=self.parse, errback=self.errback, dont_filter=True)
-
+            request = Request(u, callback=self.parse, errback=self.errback, dont_filter=True)
+            request.meta['request_url'] = u
+            yield request
     def parse(self, response):
         #print("*************************",response.url)
         titles = []
@@ -186,16 +189,17 @@ class WebSpider(scrapy.Spider):
         keyString = keyString.strip()
         
         
-
-        # aliasString = ''
-        # urlIndex = self.start_urls.index(response.url)
-        # for j in self.web_info[urlIndex]:
-        #     aliasString = aliasString + str(j) + ','
+        url = response.meta['request_url']
+        aliasString = ''
+        urlIndex = self.start_urls.index(url)
+        slno = self.web_info[urlIndex][0]
+        for j in self.web_info[urlIndex]:
+            aliasString = aliasString + str(j) + ','
         
-        finalString = self.aliasString+','+titlesString+','+descString+','+langString+','+keyString
-        finale.write(finalString+'\n')
-        finale.flush()
-        fsync(finale.fileno())
+        finalString = aliasString+titlesString+','+descString+','+langString+','+keyString
+        self.finale.write(finalString+'\n')
+        self.finale.flush()
+        fsync(self.finale.fileno())
         
         # slno = self.web_info[urlIndex][0]
         # url = self.webdict[slno]
@@ -203,16 +207,18 @@ class WebSpider(scrapy.Spider):
             websiteData = response.text
             if not (path.exists('./WebPages 2')):
                 mkdir('./WebPages 2')
-            with open('./WebPages 2/'+str(self.slno)+'_'+self.url+'.html','w') as webPageFile:
+            with open('./WebPages 2/'+str(slno)+'_'+url[8:]+'.html','w') as webPageFile:
                 webPageFile.write(websiteData)
         except Exception as e:
-            print(self.slno," FAIL - ",e)
+            print(slno," FAIL - ",e)
         
         #print('\n\n *******************************\n',self.aliasString+','+titlesString+','+descString+','+langString+','+keyString,'\n\n')
-        print(self.slno," PASS")
+        print(slno," PASS",url)
 
     def errback(self, failure):
-        print(self.slno," FAIL")
+        url = failure.value.response.meta['request_url']
+        slno = self.web_info[self.start_urls.index(url)][0]
+        print(slno," FAIL",url)
 
         if failure.check(HttpError):
             response = failure.value.response
@@ -227,7 +233,7 @@ class WebSpider(scrapy.Spider):
             logging.log(logging.ERROR,'TimeoutError on '+ str(request.url))
         else:
             logging.log(logging.ERROR,repr(failure))
-        failString = ''+str(self.slno)+','+self.url
+        failString = ''+str(slno)+','+url
         errorFile.write(failString+'\n')
         errorFile.flush()
         fsync(errorFile.fileno())
@@ -240,32 +246,42 @@ process = CrawlerProcess({
 # df = pd.read_csv('data.csv')
 # finale = open('finalfile.csv',w)
 
+# start = int(input("Enter starting sample number : "))
+# num_samples = int(input("Enter number of samples to scrape : "))
+
+# df = pd.read_csv('data.csv')
+# data = df.replace(np.nan, '', regex=True)
+# k = pd.read_csv('top-1m-websites.csv')
+# webdict={}
+# for i,row in k.head(2000).iterrows():
+#     webdict[row['slno']] = row['websiteName']
+
+# inittime1 = time.time()
+# for i,row in data[start:start+num_samples].iterrows():
+#     url='https://www.'+webdict[row['slno']]
+#     aliasString = str(row[0])+','+str(row[1])+','+str(row[2])+','+str(row[3])
+#     process.crawl(WebSpider,row['slno'], url, row['slno'], aliasString)
+# inittime2 = time.time()
+# print("Spiders initialised - ",inittime2-inittime1)
+
+# proctime=time.time()
+# errorFile = open('fetchError.csv','a')
+# finale = open('finale.csv','a')
+# process.start()
+# print("Total time taken : ",time.time()-proctime)
+
 start = int(input("Enter starting sample number : "))
 num_samples = int(input("Enter number of samples to scrape : "))
 
+
 df = pd.read_csv('data.csv')
 data = df.replace(np.nan, '', regex=True)
-k = pd.read_csv('top-1m-websites.csv')
-webdict={}
-for i,row in k.iterrows():
-    webdict[row['slno']] = row['websiteName']
+for i,row in data.head(15).iterrows():
+    start_urls.append('https://www.'+row['websiteName']
+    web_info.append(row.tolist())
 
-inittime1 = time.time()
-for i,row in data[start:start+num_samples].iterrows():
-    url='https://www.'+webdict[row['slno']]
-    aliasString = str(row[0])+','+str(row[1])+','+str(row[2])+','+str(row[3])
-    process.crawl(WebSpider,row['slno'], url, row['slno'], aliasString)
-inittime2 = time.time()
-print("Spiders initialised - ",inittime2-inittime1)
-
-proctime=time.time()
-errorFile = open('fetchError.csv','a')
-finale = open('finale.csv','a')
-process.start()
-print("Total time taken : ",time.time()-proctime)
-
-# try:
-#     process.crawl(WebSpider, url=url, aliasString=aliasString)
-#     s = process.start()
-# except:
-#     pass
+try:
+    process.crawl(WebSpider)
+    s = process.start()
+except:
+    pass
