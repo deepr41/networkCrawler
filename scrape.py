@@ -48,6 +48,7 @@ class WebSpider(scrapy.Spider):
         self.web_info = web_info
         print('start_urls',self.start_urls)
         print('web_info',self.web_info)
+        logging.getLogger('scrapy').setLevel(logging.ERROR)
         # # self.start_urls=url
         # self.errorFile = open(errorFile,'w')
         # self.finale = open(finale,'w')

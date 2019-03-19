@@ -6,13 +6,10 @@ from gensim.corpora import Dictionary
 import csv
 from os import path,mkdir,fsync
 
-def zero(column,row): 
-    return np.zeros([column,row])
 
-def getMatrix(corpus,model):
+def getMatrix(corpus,model,maxDocLength,index):
     i = 0
     dataDict = {}
-    maxDocLength = 0
     for doc in corpus:
         print('Doing doc ' + str(i),end = '   ')
         index = 0
@@ -32,26 +29,31 @@ def getMatrix(corpus,model):
                 break
         docName = 'doc' + str(i)
         i += 1 
-        maxDocLength = max(rowArray.size,maxDocLength)
-        print(maxDocLength)
+        # maxDocLength = max(rowArray.size,maxDocLength)
+        print(i)
         dataDict[docName] = rowArray
         if(i%5 == 0 and i!= 0):
             break
     for key,item in dataDict.items():
         dataDict[key] = np.append(item,np.zeros(maxDocLength - item.size))
         assert(dataDict[key].size == maxDocLength)
-    df = pd.DataFrame(dataDict)
-    df.to_csv('wordMatrix.csv',index=False)
+    df = pd.DataFrame(dataDict,index=index)
+    df.to_csv('wordMatrix.csv')
 
 
 def main():
     dataset = api.load("text8")
     dct = Dictionary(dataset)
+    index = []
+    # for (i,j) in dct.items():
+    #     index.append(j)
 
     corpus = [dct.doc2bow(line) for line in dataset] 
     model = TfidfModel(corpus)  
+    maxDocLength = len(dct)
 
-    getMatrix(corpus,model)
+    getMatrix(corpus,model,maxDocLength,index)
+
 
 
 if __name__ == "__main__":
