@@ -204,15 +204,15 @@ class WebSpider(scrapy.Spider):
         
         finalString = aliasString+titlesString+','+descString+','+langString+','+keyString
         finale.write(finalString+'\n')
-        finale.flush()
-        fsync(finale.fileno())
+        # finale.flush()
+        # fsync(finale.fileno())
         
         # slno = self.web_info[urlIndex][0]
         # url = self.webdict[slno]
         try:
             websiteData = response.text
-            if not (path.exists('./WebPages 2')):
-                mkdir('./WebPages 2')
+            # if not (path.exists('./WebPages 2')):
+            #     mkdir('./WebPages 2')
             with open('./WebPages 2/'+str(slno)+'_'+url[8:]+'.html','w') as webPageFile:
                 webPageFile.write(websiteData)
         except Exception as e:
@@ -222,7 +222,7 @@ class WebSpider(scrapy.Spider):
         print(slno," PASS",url)
 
     def errback(self, failure):
-        
+        e = 'Error '
         try:
             url = failure.value.response.meta['request_url']
             slno = self.web_info[self.start_urls.index(url)][0]
@@ -234,12 +234,15 @@ class WebSpider(scrapy.Spider):
         
         if failure.check(HttpError):
             logging.log(logging.ERROR,'HttpError on '+ url)
+            e = e+'HttpError'
 
         elif failure.check(DNSLookupError):
             logging.log(logging.ERROR,'DNSLookupError on '+ url)
+            e = e+'DNSLookupError'
 
         elif failure.check(TimeoutError, TCPTimedOutError):
             logging.log(logging.ERROR,'TimeoutError on '+ url)
+            e = e+'TimeoutError'
         else:
             logging.log(logging.ERROR,repr(failure))
         
@@ -247,14 +250,15 @@ class WebSpider(scrapy.Spider):
         for j in self.web_info[self.start_urls.index(url)]:
             failString = failString + str(j) + ','
         
-        errorFile.write(failString+'\n')
-        errorFile.flush()
-        fsync(errorFile.fileno())
+        errorFile.write(failString+e+'\n')
+        # errorFile.flush()
+        # fsync(errorFile.fileno())
 
 process = CrawlerProcess({
-    'USER_AGENT': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
+    'USER_AGENT': 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'#'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/60.0.3112.113 Safari/537.36',
 
 })
+
 
 # df = pd.read_csv('data.csv')
 # finale = open('finalfile.csv',w)

@@ -10,16 +10,16 @@ class WebSpider(scrapy.Spider):
 
         self.start_urls=['https://www.google.com','https://www.youtube.com','https://www.reddit.com','https://www.facebook.com','https://www.yahoo.com','https://www.gmail.com','https://www.netflix.com']
     
-    def make_requests_from_url(self, url):
-        item = MyItem()
+    # def make_requests_from_url(self, url):
+    #     item = MyItem()
 
-        # assign url
-        item['start_url'] = url
-        request = Request(url, dont_filter=True)
+    #     # assign url
+    #     item['start_url'] = url
+    #     request = Request(url, dont_filter=True)
 
-        # set the meta['item'] to use the item in the next call back
-        request.meta['item'] = item
-        return request
+    #     # set the meta['item'] to use the item in the next call back
+    #     request.meta['item'] = item
+    #     return request
 
 
 
@@ -29,7 +29,7 @@ class WebSpider(scrapy.Spider):
     def start_requests(self):
         for i,u in enumerate(self.start_urls):
             request = Request(u, callback=self.parse, dont_filter=True)
-            request.meta['req_url'] = u
+            #request.meta['req_url'] = u
             yield request            
 
         
@@ -45,4 +45,4 @@ process = CrawlerProcess({
 })
 
 process.crawl(WebSpider)
-s = process.start()
+process.start()
