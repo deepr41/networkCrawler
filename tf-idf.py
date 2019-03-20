@@ -7,6 +7,7 @@ import csv
 import os
 import multiprocessing as mp
 import time
+import sys
 
 
 maxProcesses = 12
@@ -14,28 +15,16 @@ activeProcesses = 0
 model = []
 
 
-def fillDocs(doc,docName):
-    # docName = 'doc' + str(i+1)
+def fillDocs(doc,docName,maxDocLength):
+    # docName = 'doc' + ,str(i+1)
     global model
+    sys.stdout.write("\033[F")
     print('Doing '+ docName)
-
-    index = 0
-    counter = 1
-    rowArray = []
-    while True:
-        try:
-            word = model[doc][index]
-            if(word[0]==counter):
-                rowArray.append(word[1])
-                counter = counter + 1
-                index += 1
-            else:
-                rowArray.append(np.float64(0))
-                counter = counter + 1
-        except:
-            break
-    # dataDict[docName] = rowArray
-    print('finished '+docName)
+    rowArray = [0]*maxDocLength
+    # print(model[doc])
+    for word in model[doc]:
+        rowArray[word[0]] = word[1]
+    # print('finished '+docName)
     return rowArray
 
 
@@ -43,41 +32,22 @@ def getMatrix(corpus,model,maxDocLength,indexCol):
     dataDict = {}
     i = 0
     for doc in corpus:
+        # print(model[doc])
+        print()
         docName = 'doc' + str(i+1)
-        dataDict[docName] = fillDocs(doc,docName)
+        dataDict[docName] = fillDocs(doc,docName,maxDocLength)
         i += 1
 
-    # processes = [mp.Process(target=fillDocs, args=(doc,i,dataDict)) for i,doc in enumerate(corpus)]
-
-    # x = 0
-    # while( True):
-    #     global activeProcesses
-    #     global maxProcesses
-    #     print(activeProcesses,maxProcesses)
-    #     if not(x<len(processes)):
-    #         break
-    #     # if(activeProcesses >= maxProcesses):
-    #     #     time.sleep(5)
-    #     # else:
-    #         # activeProcesses += 1
-    #     processes[x].start()
-    #     x += 1
-
-    # for p in processes:
-    #     p.start()
-
-    # for p in processes:
-    #     p.join()
-
-
-    for key,item in dataDict.items():
-        item1 = np.array(item)
-        item2 = np.append(item1,np.zeros(maxDocLength - item1.size))
-        dataDict[key] = item2
-        assert(dataDict[key].size == maxDocLength)
+    # for key,item in dataDict.items():
+    #     item1 = np.array(item)
+    #     item2 = np.append(item1,np.zeros(maxDocLength - item1.size))
+    #     dataDict[key] = item2
+    #     assert(dataDict[key].size == maxDocLength)
 
     df = pd.DataFrame(dataDict,index=indexCol)
+    print('Saving martix')
     df.to_csv('wordMatrix.csv')
+    print('Saving done')
 
 def formatLine(line):
     #should return array of words
@@ -92,13 +62,14 @@ def main():
     for documentName in os.listdir(filePath):
         wordArray = []
         fileId = documentName.split('.')[0]
+        sys.stdout.write("\033[F")
         print('Doc read '+ documentName)
         fileName = str(filePath + '/' + documentName)
         with open(fileName,'r') as doc:
             for line in doc.readlines():
                 wordArray = wordArray + formatLine(line)
         datasetDict[fileId] = wordArray
-
+    print()
     for key in sorted(datasetDict):
         dataset.append(datasetDict[key])
     print('Preparing dictionary')
@@ -113,8 +84,10 @@ def main():
     corpus = [dct.doc2bow(line) for line in dataset] 
     print('Calculating TFidf')
     global model
-    model = TfidfModel(corpus)  
+    model = TfidfModel(corpus, smartirs='ntn') 
+
     maxDocLength = len(dct)
+    print('Number of unique words', maxDocLength)
     print('Preparing Matrix')
     getMatrix(corpus,model,maxDocLength,index)
 

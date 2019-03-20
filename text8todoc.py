@@ -8,8 +8,8 @@ dataset = api.load("text8")
 dir = './Documents/'
 
 for i,doc in enumerate(dataset):
-    if(i%12 == 0 and i!= 0):
-        break
+    # if(i%12 == 0 and i!= 0):
+    #     break
     myString = ''
     print(i)
     for word in doc:
