@@ -14,6 +14,14 @@ maxProcesses = 12
 activeProcesses = 0
 model = []
 
+def calculate_time(func):
+    def inner(*args, **kargs):
+        start = time.time()
+        func(*args, **kargs)
+        end = time.time()
+        print("Excecution time of ",func.__name__, end-start)
+    return inner
+        
 
 def fillDocs(doc,docName,maxDocLength):
     # docName = 'doc' + ,str(i+1)
@@ -29,21 +37,20 @@ def fillDocs(doc,docName,maxDocLength):
 
 
 def getMatrix(corpus,model,maxDocLength,indexCol):
+    print()
     dataDict = {}
-    i = 0
-    for doc in corpus:
+    for i,doc in enumerate(corpus):
         # print(model[doc])
-        print()
         docName = 'doc' + str(i+1)
         dataDict[docName] = fillDocs(doc,docName,maxDocLength)
-        i += 1
+    # print()
 
     # for key,item in dataDict.items():
     #     item1 = np.array(item)
     #     item2 = np.append(item1,np.zeros(maxDocLength - item1.size))
     #     dataDict[key] = item2
     #     assert(dataDict[key].size == maxDocLength)
-
+    print('Creating dataframe')
     df = pd.DataFrame(dataDict,index=indexCol)
     print('Saving martix')
     df.to_csv('wordMatrix.csv')
@@ -59,6 +66,7 @@ def main():
     datasetDict= {}
     dataset = []
     filePath = os.getcwd() +'/Documents'
+    print()
     for documentName in os.listdir(filePath):
         wordArray = []
         fileId = documentName.split('.')[0]
@@ -69,7 +77,6 @@ def main():
             for line in doc.readlines():
                 wordArray = wordArray + formatLine(line)
         datasetDict[fileId] = wordArray
-    print()
     for key in sorted(datasetDict):
         dataset.append(datasetDict[key])
     print('Preparing dictionary')
