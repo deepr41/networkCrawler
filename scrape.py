@@ -138,7 +138,7 @@ class WebSpider(scrapy.Spider):
             pass
         try:
             desc3 = [desc.extract() for desc in response.xpath("//*[@name='description']/@content")]
-            descrptions.extend(desc3)
+            descriptions.extend(desc3)
         except:
             pass
         try:
