@@ -1,3 +1,5 @@
 *.html
 *.csv
 *.txt
+encoder/infersent2.pickle
+encoder/infersent1.pickle

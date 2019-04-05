@@ -292,7 +292,7 @@ start = int(input("Enter starting sample number : "))
 num_samples = int(input("Enter number of samples to scrape : "))
 num_spiders = int(input("Enter number of spiders : "))
 
-df = pd.read_csv('dataMerged.csv')
+df = pd.read_csv('secondRound.csv')
 data = df.replace(np.nan, '', regex=True)
 startIndex = start
 for j in range(1,num_spiders+1):

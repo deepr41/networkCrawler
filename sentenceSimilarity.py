@@ -26,7 +26,6 @@ tf.logging.set_verbosity(tf.logging.ERROR)
 with tf.Session() as session:
   session.run([tf.global_variables_initializer(), tf.tables_initializer()])
   message_embeddings = session.run(embed(messages))
-
   for i, message_embedding in enumerate(np.array(message_embeddings).tolist()):
     print("Message: {}".format(messages[i]))
     print("Embedding size: {}".format(len(message_embedding)))
