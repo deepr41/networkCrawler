@@ -3,3 +3,11 @@
 *.txt
 encoder/infersent2.pickle
 encoder/infersent1.pickle
+*.test
+*.train
+*.dev
+*.ipynb
+*.bash
+*.sed
+*.zip
+*.pyc
