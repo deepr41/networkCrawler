@@ -3,6 +3,7 @@ import torch
 import math
 import numpy as np
 import pandas as pd
+from os import fsync
 # import 
 # nltk.download('punkt')
 
@@ -15,7 +16,6 @@ def euclidianDistance(emb1,emb2):
 def cosineSimilarity(emb1,emb2):
     from scipy import spatial
     return 1 - spatial.distance.cosine(emb1, emb2)
-
 
 def infersentModel(V):
     from models import InferSent
@@ -34,28 +34,52 @@ def infersentModel(V):
     infersent.set_w2v_path(W2V_PATH)
     return infersent
 
-sentences = [
-    "This church choir sings to the masses as they sing joyous songs from the book at a church.",
-    "A choir singing at a baseball game.",
-]
 
 def main():
+    filename = './SNLI Data/Google/snliTrainGoogle.csv'
+    df = readData(filename)
+    print('Calculating unique setences')
+    sentences = uniqueSentence(df)
+    print('unique sentences ready')
     infersent = infersentModel(1)
+    print('Building vocab for model')
     infersent.build_vocab(sentences, tokenize=True)
+    print('Encoding sentences')
     embeddings = infersent.encode(sentences, tokenize=True)
+    print('Embedding done')
+    embbedDict = dict()
+    for index,sentence in enumerate(sentences):
+        embbedDict[sentence] = embeddings[index]
 
-    similaritites = np.inner(embeddings,embeddings)
-    print(similaritites)
+    updateFile(df,embbedDict)
 
-    print(euclidianDistance(embeddings[0],embeddings[1]))
-    print(cosineSimilarity(embeddings[0],embeddings[1]))
-    print(np.inner(embeddings[0],embeddings[1]))
+
+def uniqueSentence(df):
+    sentences = set()
+    for index,row in df.iterrows():
+        sentences.add(str(row['sentence1']))
+        sentences.add(str(row['sentence2']))
+    return sentences
+
+def updateFile(df,embbedDict):
+    with open('./SNLI Data/Facebook/snliTrainFacebook.csv','w') as outfile:
+        for index,row in df.iterrows():
+            print(index)
+            sent1 = row['sentence1']
+            sent2 = row['sentence2']
+            emb1 = embbedDict[sent1]
+            emb2 = embbedDict[sent2]
+            similarity = cosineSimilarity(emb1,emb2)
+            finalString = ""+str(row['gold_label'])+","+str(row['sentence1'])+","+str(row['sentence2'])+","+str(row['google'])+","+str(similarity)+'\n'
+            outfile.write(finalString)
+            outfile.flush()
+            fsync(outfile.fileno()) 
+
 
 def readData(filename):
-    df = pd.read_csv(filename, sep='\t',)
-    print(df.head())
+    df = pd.read_csv(filename,)
+    df = df.replace(np.nan," ", regex=True)
+    return df[91480:]
 
 if __name__ == "__main__":
     main()
-    # import sys
-    # readData(sys.argv[1])
